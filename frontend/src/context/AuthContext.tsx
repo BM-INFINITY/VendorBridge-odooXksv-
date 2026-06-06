@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
+import { apiUrl } from "../utils";
 
 export type UserRole = "ADMIN" | "PROCUREMENT_OFFICER" | "MANAGER" | "VENDOR";
 
@@ -32,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedToken = localStorage.getItem("vb_token");
       if (storedToken) {
         try {
-          const res = await fetch("/api/auth/me", {
+          const res = await fetch(apiUrl("/api/auth/me"), {
             headers: {
               Authorization: `Bearer ${storedToken}`,
             },
@@ -77,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers.set("Content-Type", "application/json");
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(apiUrl(url), {
       ...options,
       headers,
     });

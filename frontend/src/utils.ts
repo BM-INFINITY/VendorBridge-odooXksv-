@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Prepends the backend base URL when running in production (Vercel).
+ * In development the Vite proxy handles /api/* → localhost:4000.
+ *
+ * Set VITE_API_URL=https://your-app.onrender.com in Vercel env vars.
+ */
+export function apiUrl(path: string): string {
+  const base = import.meta.env.VITE_API_URL ?? "";
+  return `${base}${path}`;
+}
+
 export function formatCurrency(
   amount: number | string,
   currency: string = "USD",
