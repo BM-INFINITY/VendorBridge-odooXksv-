@@ -124,7 +124,7 @@ const LoginForm: React.FC<{ onGoRegister: () => void }> = ({ onGoRegister }) => 
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
-                Login Button
+                Login
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
