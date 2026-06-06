@@ -35,7 +35,7 @@ router.post("/send-otp", async (req, res): Promise<void> => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
     // Save/update OTP in database
-    await db.oTP.upsert({
+    await (db as any).oTP.upsert({
       where: { email },
       update: { code: otpCode, expiresAt },
       create: { email, code: otpCode, expiresAt },
@@ -68,7 +68,7 @@ router.post("/register", async (req, res): Promise<void> => {
     }
 
     // Verify OTP code
-    const otpRecord = await db.oTP.findUnique({ where: { email } });
+    const otpRecord = await (db as any).oTP.findUnique({ where: { email } });
     if (!otpRecord || otpRecord.code !== otpCode || otpRecord.expiresAt < new Date()) {
       res.status(400).json({ success: false, error: "Invalid or expired OTP verification code." });
       return;
@@ -117,7 +117,7 @@ router.post("/register", async (req, res): Promise<void> => {
       });
 
       // Clear the verified OTP
-      await tx.oTP.delete({ where: { email } });
+      await (tx as any).oTP.delete({ where: { email } });
 
       return { user, vendor };
     });
@@ -270,7 +270,7 @@ router.post("/forgot-password", async (req, res): Promise<void> => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Save/update OTP in DB
-    await db.oTP.upsert({
+    await (db as any).oTP.upsert({
       where: { email },
       update: { code: otp, expiresAt },
       create: { email, code: otp, expiresAt },
@@ -302,7 +302,7 @@ router.post("/reset-password", async (req, res): Promise<void> => {
       return;
     }
 
-    const otpRecord = await db.oTP.findUnique({ where: { email } });
+    const otpRecord = await (db as any).oTP.findUnique({ where: { email } });
     if (!otpRecord || otpRecord.code !== otpCode || otpRecord.expiresAt < new Date()) {
       res.status(400).json({ success: false, error: "Invalid or expired verification code." });
       return;
@@ -316,7 +316,7 @@ router.post("/reset-password", async (req, res): Promise<void> => {
     });
 
     // Clear OTP
-    await db.oTP.delete({ where: { email } });
+    await (db as any).oTP.delete({ where: { email } });
 
     res.json({ success: true, message: "Password reset successfully. You can now log in." });
   } catch (error: any) {
