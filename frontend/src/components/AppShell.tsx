@@ -117,30 +117,6 @@ const ROLE_COLOR: Record<string, string> = {
   VENDOR: "bg-emerald-500/15 text-emerald-700 border-emerald-200",
 };
 
-// Workflow steps visible per role (shown as mini-guide in sidebar footer)
-const WORKFLOW_HINT: Record<string, string[]> = {
-  ADMIN: [
-    "Manage all users",
-    "Approve vendor registrations",
-    "Full procurement access",
-  ],
-  PROCUREMENT_OFFICER: [
-    "Create & publish RFQs",
-    "Compare vendor quotations",
-    "Request manager approval",
-    "Generate PO & Invoice",
-  ],
-  MANAGER: [
-    "Review approval requests",
-    "Approve or reject quotations",
-    "Monitor procurement workflows",
-  ],
-  VENDOR: [
-    "Respond to RFQ invitations",
-    "Submit quotations",
-    "View generated invoices",
-  ],
-};
 
 interface AppShellProps { children: React.ReactNode; }
 
@@ -157,7 +133,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const allowedNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
   const roleLabel = ROLE_LABEL[user.role] ?? user.role;
   const roleColor = ROLE_COLOR[user.role] ?? "bg-muted text-muted-foreground";
-  const workflowSteps = WORKFLOW_HINT[user.role] ?? [];
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
@@ -229,22 +204,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           })}
         </nav>
 
-        {/* Workflow hint footer */}
-        {workflowSteps.length > 0 && (
-          <div className="mx-3 mb-3 px-3 py-3 bg-muted/50 rounded-xl border border-border">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Your Workflow</p>
-            <ol className="space-y-1.5">
-              {workflowSteps.map((step, i) => (
-                <li key={i} className="flex items-start gap-2 text-[11px] text-muted-foreground">
-                  <span className="flex-shrink-0 h-4 w-4 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center mt-0.5">
-                    {i + 1}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
       </aside>
 
       {/* ── Main area ───────────────────────────────────────────────────── */}
