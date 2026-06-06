@@ -186,14 +186,16 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [form, setForm] = useState({
+    companyName: "",
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    role: "PROCUREMENT_OFFICER",
+    role: "VENDOR",
     country: "",
     password: "",
     confirmPassword: "",
+    otpCode: "",
     additionalInfo: "",
   });
 
@@ -208,8 +210,8 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.email || !form.password) {
-      toast.error("Please fill in all required fields");
+    if (!form.companyName || !form.firstName || !form.lastName || !form.email || !form.password || !form.otpCode) {
+      toast.error("Please fill in all required fields (including Company Name and OTP)");
       return;
     }
     if (form.password !== form.confirmPassword) {
@@ -224,6 +226,7 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          companyName: form.companyName,
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
@@ -231,6 +234,7 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
           role: form.role,
           country: form.country || undefined,
           password: form.password,
+          otpCode: form.otpCode,
           additionalInfo: form.additionalInfo || undefined,
         }),
       });
@@ -288,11 +292,28 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Row 1: First Name + Last Name */}
+          {/* Row 1: Company Name */}
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Company Name <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Tech Supplies Pvt Ltd"
+                value={form.companyName}
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          {/* Row 2: First Name + Last Name */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                First Name <span className="text-destructive">*</span>
+                Contact First Name <span className="text-destructive">*</span>
               </label>
               <input
                 type="text"
@@ -305,7 +326,7 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Last Name <span className="text-destructive">*</span>
+                Contact Last Name <span className="text-destructive">*</span>
               </label>
               <input
                 type="text"
@@ -347,23 +368,8 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
             </div>
           </div>
 
-          {/* Row 3: Role + Country */}
+          {/* Row 4: Country + OTP Code */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Role (Admin, Officer…)
-              </label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className={cn(inputClass, "cursor-pointer appearance-none")}
-              >
-                <option value="ADMIN">Admin</option>
-                <option value="PROCUREMENT_OFFICER">Procurement Officer</option>
-                <option value="MANAGER">Manager</option>
-                <option value="VENDOR">Vendor</option>
-              </select>
-            </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Country
@@ -373,6 +379,19 @@ const RegisterForm: React.FC<{ onGoLogin: () => void }> = ({ onGoLogin }) => {
                 placeholder="Country"
                 value={form.country}
                 onChange={(e) => setForm({ ...form, country: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                OTP Code <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="123456"
+                value={form.otpCode}
+                onChange={(e) => setForm({ ...form, otpCode: e.target.value })}
                 className={inputClass}
               />
             </div>

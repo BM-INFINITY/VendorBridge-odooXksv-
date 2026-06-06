@@ -17,7 +17,7 @@ export async function logActivity(input: LogActivityInput): Promise<void> {
         action: input.action,
         module: input.module,
         entityId: input.entityId,
-        metadata: input.metadata ?? {},
+        metadata: input.metadata as any,
       },
     });
   } catch (error) {

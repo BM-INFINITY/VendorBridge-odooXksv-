@@ -186,6 +186,39 @@ export const Vendors: React.FC = () => {
     }
   };
 
+  const handleApproveVendor = async (vendor: Vendor) => {
+    const confirmApprove = window.confirm(`Approve sign in for ${vendor.companyName}?`);
+    if (!confirmApprove) return;
+    
+    try {
+      const res = await apiFetch(`/api/vendors/${vendor.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorName: vendor.vendorName,
+          companyName: vendor.companyName,
+          contactPerson: vendor.contactPerson,
+          email: vendor.email,
+          phone: vendor.phone || undefined,
+          address: vendor.address || undefined,
+          category: vendor.category || undefined,
+          gstNumber: vendor.gstNumber || undefined,
+          status: "ACTIVE",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Vendor approved successfully! They can now sign in.");
+        fetchVendors();
+      } else {
+        toast.error(data.error || "Failed to approve vendor");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Error approving vendor");
+    }
+  };
+
   // ---- FORM VIEW (Add / Edit) ----
   if (viewMode === "add" || viewMode === "edit") {
     const isEdit = viewMode === "edit";
@@ -580,6 +613,14 @@ export const Vendors: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
+                          {canWrite && (vendor.status === "INACTIVE" || vendor.status === "PENDING") && (
+                            <button
+                              onClick={() => handleApproveVendor(vendor)}
+                              className="text-emerald-600 hover:text-emerald-700 font-semibold text-xs transition-colors flex items-center gap-1"
+                            >
+                              Approve
+                            </button>
+                          )}
                           <button
                             onClick={() => handleViewDetail(vendor.id)}
                             className="text-primary hover:text-primary/80 font-semibold text-xs transition-colors"

@@ -197,6 +197,11 @@ router.post("/login", async (req, res): Promise<void> => {
     // Check approval status for Vendor role
     const isApproved = user.role !== "VENDOR" || (await db.vendor.findUnique({ where: { email: user.email } }))?.status === "ACTIVE";
 
+    if (!isApproved) {
+      res.status(403).json({ success: false, error: "Your vendor account is pending approval from an Administrator." });
+      return;
+    }
+
     const token = jwt.sign(
       {
         id: user.id,
