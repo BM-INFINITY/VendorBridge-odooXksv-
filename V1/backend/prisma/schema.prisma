@@ -1,0 +1,349 @@
+// =============================================================================
+// VendorBridge — Prisma Schema
+// Database: PostgreSQL (Neon)
+// ORM: Prisma 6
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserRole {
+  ADMIN
+  PROCUREMENT_OFFICER
+  VENDOR
+  MANAGER
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RFQStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SUBMITTED
+  SELECTED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum POStatus {
+  ISSUED
+  ACKNOWLEDGED
+  COMPLETED
+}
+
+enum InvoiceStatus {
+  GENERATED
+  SENT
+  PAID
+}
+
+enum ActivityModule {
+  VENDOR
+  RFQ
+  QUOTATION
+  APPROVAL
+  PURCHASE_ORDER
+  INVOICE
+  USER
+}
+
+// =============================================================================
+// MODELS
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// User
+// Stores all system users regardless of role.
+// Vendors are users with role=VENDOR. They are also linked to a Vendor record.
+// -----------------------------------------------------------------------------
+model User {
+  id             String   @id @default(cuid())
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  email          String   @unique
+  password       String
+  phone          String?
+  country        String?
+  role           UserRole @default(PROCUREMENT_OFFICER)
+  image          String?
+  additionalInfo String?  @map("additional_info")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdVendors       Vendor[]        @relation("VendorCreatedBy")
+  createdRFQs          RFQ[]           @relation("RFQCreatedBy")
+  reviewedApprovals    Approval[]      @relation("ApprovalReviewedBy")
+  createdPurchaseOrders PurchaseOrder[] @relation("POCreatedBy")
+  activityLogs         ActivityLog[]
+
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// Vendor
+// Master record for each supplier/vendor company.
+// -----------------------------------------------------------------------------
+model Vendor {
+  id            String       @id @default(cuid())
+  vendorName    String       @map("vendor_name")
+  companyName   String       @map("company_name")
+  contactPerson String       @map("contact_person")
+  email         String       @unique
+  phone         String?
+  address       String?
+  status        VendorStatus @default(ACTIVE)
+  createdById   String       @map("created_by")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy    User          @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  rfqs         RFQVendor[]
+  quotations   Quotation[]
+  purchaseOrders PurchaseOrder[]
+  invoices     Invoice[]
+
+  @@map("vendors")
+}
+
+// -----------------------------------------------------------------------------
+// RFQ (Request for Quotation)
+// -----------------------------------------------------------------------------
+model RFQ {
+  id          String    @id @default(cuid())
+  rfqNumber   String    @unique @map("rfq_number")
+  title       String
+  description String?
+  category    String?
+  status      RFQStatus @default(DRAFT)
+  deadline    DateTime?
+  createdById String    @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy     User           @relation("RFQCreatedBy", fields: [createdById], references: [id])
+  items         RFQItem[]
+  vendors       RFQVendor[]
+  quotations    Quotation[]
+  approvals     Approval[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("rfqs")
+}
+
+// -----------------------------------------------------------------------------
+// RFQItem
+// Line items within an RFQ (products/services requested).
+// -----------------------------------------------------------------------------
+model RFQItem {
+  id       String @id @default(cuid())
+  rfqId    String @map("rfq_id")
+  itemName String @map("item_name")
+  quantity Decimal
+  unit     String?
+
+  // Relations
+  rfq            RFQ             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  quotationItems QuotationItem[]
+
+  @@map("rfq_items")
+}
+
+// -----------------------------------------------------------------------------
+// RFQVendor
+// Join table: many-to-many between RFQs and Vendors (assignment).
+// -----------------------------------------------------------------------------
+model RFQVendor {
+  rfqId    String @map("rfq_id")
+  vendorId String @map("vendor_id")
+
+  rfq    RFQ    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@id([rfqId, vendorId])
+  @@map("rfq_vendors")
+}
+
+// -----------------------------------------------------------------------------
+// Quotation
+// One quotation per vendor per RFQ.
+// -----------------------------------------------------------------------------
+model Quotation {
+  id               String          @id @default(cuid())
+  rfqId            String          @map("rfq_id")
+  vendorId         String          @map("vendor_id")
+  status           QuotationStatus @default(DRAFT)
+  deliveryTimeline String?         @map("delivery_timeline")
+  notes            String?
+  totalAmount      Decimal         @default(0) @map("total_amount")
+  submittedAt      DateTime?       @map("submitted_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  rfq      RFQ             @relation(fields: [rfqId], references: [id])
+  vendor   Vendor          @relation(fields: [vendorId], references: [id])
+  items    QuotationItem[]
+  approval Approval?
+
+  @@unique([rfqId, vendorId])
+  @@map("quotations")
+}
+
+// -----------------------------------------------------------------------------
+// QuotationItem
+// Priced line item within a quotation, linked back to the original RFQ item.
+// -----------------------------------------------------------------------------
+model QuotationItem {
+  id            String  @id @default(cuid())
+  quotationId   String  @map("quotation_id")
+  rfqItemId     String  @map("rfq_item_id")
+  unitPrice     Decimal @map("unit_price")
+  quantity      Decimal
+  taxPercentage Decimal @default(0) @map("tax_percentage")
+  totalAmount   Decimal @map("total_amount")
+
+  // Relations
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  rfqItem   RFQItem   @relation(fields: [rfqItemId], references: [id])
+
+  @@map("quotation_items")
+}
+
+// -----------------------------------------------------------------------------
+// Approval
+// One approval record per selected quotation.
+// -----------------------------------------------------------------------------
+model Approval {
+  id           String         @id @default(cuid())
+  quotationId  String         @unique @map("quotation_id")
+  rfqId        String         @map("rfq_id")
+  status       ApprovalStatus @default(PENDING)
+  remarks      String?
+  reviewedById String?        @map("reviewed_by")
+  reviewedAt   DateTime?      @map("reviewed_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  quotation     Quotation      @relation(fields: [quotationId], references: [id])
+  rfq           RFQ            @relation(fields: [rfqId], references: [id])
+  reviewedBy    User?          @relation("ApprovalReviewedBy", fields: [reviewedById], references: [id])
+  purchaseOrder PurchaseOrder?
+
+  @@map("approvals")
+}
+
+// -----------------------------------------------------------------------------
+// PurchaseOrder
+// Auto-generated when an approval is granted.
+// -----------------------------------------------------------------------------
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  poNumber    String   @unique @map("po_number")
+  approvalId  String   @unique @map("approval_id")
+  vendorId    String   @map("vendor_id")
+  rfqId       String   @map("rfq_id")
+  status      POStatus @default(ISSUED)
+  issueDate   DateTime @default(now()) @map("issue_date")
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  approval  Approval            @relation(fields: [approvalId], references: [id])
+  vendor    Vendor              @relation(fields: [vendorId], references: [id])
+  rfq       RFQ                 @relation(fields: [rfqId], references: [id])
+  createdBy User                @relation("POCreatedBy", fields: [createdById], references: [id])
+  items     PurchaseOrderItem[]
+  invoice   Invoice?
+
+  @@map("purchase_orders")
+}
+
+// -----------------------------------------------------------------------------
+// PurchaseOrderItem
+// Line items on a PO (copied from the winning quotation items).
+// -----------------------------------------------------------------------------
+model PurchaseOrderItem {
+  id            String  @id @default(cuid())
+  poId          String  @map("po_id")
+  itemName      String  @map("item_name")
+  quantity      Decimal
+  unitPrice     Decimal @map("unit_price")
+  taxPercentage Decimal @default(0) @map("tax_percentage")
+  totalAmount   Decimal @map("total_amount")
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_order_items")
+}
+
+// -----------------------------------------------------------------------------
+// Invoice
+// Auto-generated from a Purchase Order. One invoice per PO.
+// -----------------------------------------------------------------------------
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique @map("invoice_number")
+  poId          String        @unique @map("po_id")
+  vendorId      String        @map("vendor_id")
+  subtotal      Decimal
+  taxAmount     Decimal       @map("tax_amount")
+  grandTotal    Decimal       @map("grand_total")
+  status        InvoiceStatus @default(GENERATED)
+  issuedAt      DateTime?     @map("issued_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
+  vendor        Vendor        @relation(fields: [vendorId], references: [id])
+
+  @@map("invoices")
+}
+
+// -----------------------------------------------------------------------------
+// ActivityLog
+// Append-only audit trail. Written by all mutation Server Actions.
+// -----------------------------------------------------------------------------
+model ActivityLog {
+  id        String         @id @default(cuid())
+  userId    String         @map("user_id")
+  action    String         // e.g. "RFQ_CREATED", "APPROVAL_GRANTED"
+  module    ActivityModule
+  entityId  String?        @map("entity_id")
+  metadata  Json?          // JSONB: flexible extra context
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
