@@ -34,7 +34,7 @@ export const ActivityLogs: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         setLogs(data.data.logs);
-        setTotalPages(data.data.pagination.totalPages);
+        setTotalPages(data.data.totalPages);
       }
     } catch (error) {
       console.error(error);

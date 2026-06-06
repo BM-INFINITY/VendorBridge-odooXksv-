@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { formatDate, formatCurrency } from "../utils";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Receipt, Mail, Send, Download } from "lucide-react";
+import { Loader2, ArrowLeft, Receipt, Mail, Send, Download, Printer } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 
 interface Invoice {
@@ -18,13 +18,23 @@ interface Invoice {
     companyName: string;
     vendorName: string;
     email: string;
+    address?: string | null;
+    gstNumber?: string | null;
   };
   purchaseOrder: {
     poNumber: string;
+    issueDate: string;
     rfq: {
       rfqNumber: string;
       title: string;
     };
+    items?: {
+      id: string;
+      itemName: string;
+      quantity: number;
+      unitPrice: number;
+      totalAmount: number;
+    }[];
   };
 }
 
@@ -134,6 +144,30 @@ export const Invoices: React.FC = () => {
     }
   };
 
+  const handleMarkAsPaid = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/invoices/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "PAID" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Invoice marked as paid!");
+        handleViewDetails(id);
+        fetchInvoices();
+      } else {
+        toast.error(data.error || "Failed to update status");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Error updating status");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -221,97 +255,145 @@ export const Invoices: React.FC = () => {
 
       {/* ----------------- DETAIL VIEW ----------------- */}
       {viewMode === "detail" && selectedInvoice && (
-        <div className="space-y-6">
+        <div className="space-y-6 print:m-0 print:space-y-4">
           <button 
             onClick={() => setViewMode("list")}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground font-medium text-sm transition-colors"
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground font-medium text-sm transition-colors print:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to invoices list
           </button>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Left Column: Metadata */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-card border rounded-xl p-6 shadow-sm space-y-4">
-                <div className="flex justify-between items-start border-b pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2.5 bg-primary/10 text-primary rounded-lg">
-                      <Receipt className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold">{selectedInvoice.invoiceNumber}</h2>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Linked Order: <strong className="text-foreground">{selectedInvoice.purchaseOrder.poNumber}</strong>
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                    selectedInvoice.status === "GENERATED" 
-                      ? "bg-slate-500/10 text-slate-600" 
-                      : selectedInvoice.status === "SENT"
-                      ? "bg-blue-500/10 text-blue-600"
-                      : "bg-emerald-500/10 text-emerald-600"
-                  }`}>
-                    {selectedInvoice.status}
-                  </span>
-                </div>
+          <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm print:shadow-none print:border-none print:p-0">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">Purchase Order & Invoice</h1>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  {selectedInvoice.purchaseOrder.poNumber} auto-generated after approval
+                </p>
+              </div>
+              <div className="flex gap-3 print:hidden">
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={actionLoading}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
+                >
+                  Print
+                </button>
+                <button
+                  onClick={() => setShowEmailModal(true)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  Email invoice
+                </button>
+              </div>
+            </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 text-sm">
-                  <div>
-                    <span className="text-xs text-muted-foreground font-semibold uppercase">Vendor / Supplier</span>
-                    <p className="font-semibold text-foreground mt-0.5">{selectedInvoice.vendor.companyName}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{selectedInvoice.vendor.vendorName} ({selectedInvoice.vendor.email})</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground font-semibold uppercase">Issue Date</span>
-                    <p className="font-semibold text-foreground mt-0.5">{formatDate(selectedInvoice.issuedAt)}</p>
-                  </div>
+            {/* Bill To & Info Card */}
+            <div className="border border-gray-200 rounded-lg mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 p-6 pb-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Bill to:</p>
+                  <p className="font-semibold text-foreground">VendorBridge</p>
+                  <p className="text-sm text-foreground mt-1">Procurement Department</p>
                 </div>
-
-                {/* financial Breakdown */}
-                <div className="border-t pt-4 mt-2 space-y-2.5 max-w-md ml-auto text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal Amount:</span>
-                    <span className="font-semibold">{formatCurrency(selectedInvoice.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Estimated Tax Amount:</span>
-                    <span className="font-semibold">{formatCurrency(selectedInvoice.taxAmount)}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2.5 text-base">
-                    <span className="font-bold text-foreground">Grand Total:</span>
-                    <span className="font-bold text-primary">{formatCurrency(selectedInvoice.grandTotal)}</span>
-                  </div>
+                <div className="mt-4 md:mt-0">
+                  <p className="text-sm text-muted-foreground mb-2">Vendor</p>
+                  <p className="font-semibold text-foreground">{selectedInvoice.vendor.companyName}</p>
+                  {selectedInvoice.vendor.address && (
+                    <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{selectedInvoice.vendor.address}</p>
+                  )}
+                  {selectedInvoice.vendor.gstNumber && (
+                    <p className="text-sm text-foreground mt-1">GSTIN: {selectedInvoice.vendor.gstNumber}</p>
+                  )}
+                </div>
+              </div>
+              <div className="border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 p-6 pt-4 gap-y-3">
+                <div>
+                  <p className="text-sm mb-1.5"><span className="text-muted-foreground w-28 inline-block">PO Number:</span> <span className="font-medium text-foreground">{selectedInvoice.purchaseOrder.poNumber}</span></p>
+                  <p className="text-sm"><span className="text-muted-foreground w-28 inline-block">PO date:</span> <span className="font-medium text-foreground">{formatDate(selectedInvoice.purchaseOrder.issueDate || selectedInvoice.createdAt)}</span></p>
+                </div>
+                <div>
+                  <p className="text-sm mb-1.5"><span className="text-muted-foreground w-28 inline-block">invoice date:</span> <span className="font-medium text-foreground">{formatDate(selectedInvoice.issuedAt || selectedInvoice.createdAt)}</span></p>
+                  <p className="text-sm"><span className="text-muted-foreground w-28 inline-block">Due date:</span> <span className="font-medium text-foreground">{formatDate(new Date(new Date(selectedInvoice.issuedAt || selectedInvoice.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString())}</span></p>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Actions */}
-            <div className="space-y-6">
-              <div className="bg-card border rounded-xl p-6 shadow-sm space-y-4">
-                <h3 className="text-base font-bold text-foreground border-b pb-3">Billing Options</h3>
+            {/* Items Table */}
+            <div className="border border-gray-200 rounded-lg overflow-hidden mb-8">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted/50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 font-semibold text-foreground">Item</th>
+                    <th className="px-6 py-3 font-semibold text-foreground">Qty</th>
+                    <th className="px-6 py-3 font-semibold text-foreground">Unit price</th>
+                    <th className="px-6 py-3 font-semibold text-foreground text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 text-foreground">
+                  {selectedInvoice.purchaseOrder.items?.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-6 py-4">{item.itemName}</td>
+                      <td className="px-6 py-4">{Number(item.quantity).toString()}</td>
+                      <td className="px-6 py-4">{formatCurrency(item.unitPrice)}</td>
+                      <td className="px-6 py-4 text-right font-medium">{formatCurrency(item.totalAmount)}</td>
+                    </tr>
+                  ))}
+                  {(!selectedInvoice.purchaseOrder.items || selectedInvoice.purchaseOrder.items.length === 0) && (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                        No items found for this invoice.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot className="border-t border-gray-200 text-sm">
+                  <tr>
+                    <td colSpan={3} className="px-6 py-3 text-right text-muted-foreground">Subtotal</td>
+                    <td className="px-6 py-3 text-right font-medium text-foreground">{formatCurrency(selectedInvoice.subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="px-6 py-3 text-right text-muted-foreground">Tax Amount</td>
+                    <td className="px-6 py-3 text-right font-medium text-foreground">{formatCurrency(selectedInvoice.taxAmount)}</td>
+                  </tr>
+                  <tr className="border-t border-gray-100">
+                    <td colSpan={3} className="px-6 py-4 text-right font-semibold text-foreground">Grand total</td>
+                    <td className="px-6 py-4 text-right font-bold text-primary">{formatCurrency(selectedInvoice.grandTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
 
-                <div className="flex flex-col gap-2.5">
-                  <button
-                    onClick={handleDownloadPDF}
-                    disabled={actionLoading}
-                    className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download Invoice PDF
-                  </button>
-
-                  <button
-                    onClick={() => setShowEmailModal(true)}
-                    disabled={actionLoading}
-                    className="w-full flex items-center justify-center gap-2 border hover:bg-accent text-foreground py-2.5 rounded-lg font-medium text-sm transition-all"
-                  >
-                    <Mail className="h-4 w-4" />
-                    Email to Supplier
-                  </button>
-                </div>
-              </div>
+            {/* Status Area */}
+            <div className="flex items-center gap-3 text-sm pt-2 print:hidden">
+              <span className="text-muted-foreground">status:</span>
+              <span className={`px-3 py-1 rounded-full font-medium text-xs ${
+                selectedInvoice.status === "PAID" ? "bg-emerald-100 text-emerald-700" :
+                selectedInvoice.status === "SENT" ? "bg-blue-100 text-blue-700" :
+                "bg-amber-100 text-amber-700"
+              }`}>
+                {selectedInvoice.status === "PAID" ? "Paid" : "Pending Payment"}
+              </span>
+              
+              {selectedInvoice.status !== "PAID" && (
+                <button 
+                  onClick={() => handleMarkAsPaid(selectedInvoice.id)}
+                  className="text-blue-600 hover:text-blue-800 font-medium ml-2 text-xs flex items-center gap-1"
+                  disabled={actionLoading}
+                >
+                  {actionLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Mark as Paid
+                </button>
+              )}
             </div>
           </div>
 
